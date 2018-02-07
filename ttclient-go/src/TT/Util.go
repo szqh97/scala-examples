@@ -45,7 +45,6 @@ func GetMsgServerAddress() (string, string, error) {
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
-	log.Println(string(body))
 	var loginresp LoginServerRsp
 	err = json.Unmarshal(body, &loginresp)
 	return loginresp.PriorIP, loginresp.Port, nil

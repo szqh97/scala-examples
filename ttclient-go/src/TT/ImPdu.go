@@ -77,7 +77,7 @@ func (pdu *ImPdu) GetMsg() []byte {
 
 func (pdu *ImPdu) SerializedToBytes() []byte {
 	buf := new(bytes.Buffer)
-	codec := binary.LittleEndian
+	codec := binary.BigEndian
 	binary.Write(buf, codec, pdu.length)
 	binary.Write(buf, codec, pdu.version)
 	binary.Write(buf, codec, pdu.flag)
@@ -92,67 +92,67 @@ func (pdu *ImPdu) SerializedToBytes() []byte {
 func ParserFromBytes(pdu_buf []byte) *ImPdu {
 	var pdu ImPdu
 	buf := bytes.NewReader(pdu_buf)
-	binary.Read(buf, binary.LittleEndian, &pdu)
+	binary.Read(buf, binary.BigEndian, &pdu)
 	return &pdu
 
 }
 
 func ImPduReader(client *ClientConn) (*ImPdu, error) {
-
 	log.SetFlags(log.Lshortfile | log.LstdFlags)
 	fullBuf := bytes.NewBuffer([]byte{})
-	var h *PduHeader = nil
 	for {
 		data := make([]byte, 1024)
-		log.Println("before read ....")
 		readLen, err := client.conn.Read(data)
-		log.Println("after read ....")
 		if err != nil {
-			log.Fatal(err.Error())
+			log.Fatal(err)
 			return nil, err
 		}
-		if readLen == 0 {
-			return nil, errors.New("read zeor bytes")
-		} else {
-			fullBuf.Write(data[:readLen])
-			if h == nil && readLen >= 16 {
-				hbuf := make([]byte, 16)
-				_, _ = fullBuf.Read(hbuf)
-				h, err := ParseToHeader(hbuf)
-				if err != nil {
-					log.Fatal("parse to header failed, ", err.Error())
-					return nil, err
-				}
-				fmt.Println(h)
-			} else {
-				msgbuf := make([]byte, h.length-16)
-				n, err := fullBuf.Read(msgbuf)
-				if err != nil {
-					return nil, err
-				}
-				if n != int(h.length-16) {
-					return nil, errors.New("msg body truncated!")
-				}
-				return &ImPdu{
-					PduHeader: *h,
-					msg:       msgbuf,
-				}, nil
-			}
+		fullBuf.Write(data[:readLen])
+		if readLen < 1024 {
+			break
 		}
 	}
+
+	hbuf := make([]byte, 16)
+	hlen, err := fullBuf.Read(hbuf)
+	if err != nil {
+		log.Fatal("read head buf error", err)
+		return nil, err
+	}
+	if hlen != 16 {
+		log.Fatal("hlen is not 16")
+		return nil, errors.New("hlen is error")
+	}
+	header, err := ParseToHeader(hbuf)
+	if err != nil {
+		log.Fatal("parse to header failed", err)
+		return nil, err
+	}
+	msgbuf := make([]byte, header.length-16)
+	n, err := fullBuf.Read(msgbuf)
+	if err != nil {
+		return nil, err
+	}
+	if n != int(header.length-16) {
+		return nil, errors.New("msg body trucated")
+	}
+	return &ImPdu{
+		PduHeader: *header,
+		msg:       msgbuf,
+	}, nil
 }
 
 func ParseToHeader(headerbuf []byte) (*PduHeader, error) {
 	if len(headerbuf) != 16 {
 		return nil, errors.New("buf length error")
 	}
-	length_ := uint32(binary.LittleEndian.Uint32(headerbuf[:4]))
-	version_ := uint16(binary.LittleEndian.Uint16(headerbuf[4:6]))
-	flag_ := uint16(binary.LittleEndian.Uint16(headerbuf[6:8]))
-	service_id_ := uint16(binary.LittleEndian.Uint16(headerbuf[8:10]))
-	command_id_ := uint16(binary.LittleEndian.Uint16(headerbuf[10:12]))
-	seq_num_ := uint16(binary.LittleEndian.Uint16(headerbuf[12:14]))
-	reversed_ := uint16(binary.LittleEndian.Uint16(headerbuf[14:16]))
+	length_ := uint32(binary.BigEndian.Uint32(headerbuf[:4]))
+	version_ := uint16(binary.BigEndian.Uint16(headerbuf[4:6]))
+	flag_ := uint16(binary.BigEndian.Uint16(headerbuf[6:8]))
+	service_id_ := uint16(binary.BigEndian.Uint16(headerbuf[8:10]))
+	command_id_ := uint16(binary.BigEndian.Uint16(headerbuf[10:12]))
+	seq_num_ := uint16(binary.BigEndian.Uint16(headerbuf[12:14]))
+	reversed_ := uint16(binary.BigEndian.Uint16(headerbuf[14:16]))
 	return &PduHeader{
 		length:     length_,
 		version:    version_,
@@ -168,9 +168,7 @@ func ReadPduFromReader(client *ClientConn) (*ImPdu, error) {
 	log.Println("in ReadPduFromReader ...")
 	headerSize := binary.Size(PduHeader{})
 	headerbuf := make([]byte, 1024)
-	log.Printf("kKKKKKKKKKKKK con:%v \n", client.conn)
 	cnt, err := client.conn.Read(headerbuf)
-	log.Printf("kKKKKKKKKKKKK con:%v \n", client.conn)
 	if err != nil {
 		log.Fatal(err.Error())
 		return nil, err
@@ -182,13 +180,13 @@ func ReadPduFromReader(client *ClientConn) (*ImPdu, error) {
 		return nil, err
 	}
 
-	length_ := uint32(binary.LittleEndian.Uint32(headerbuf[:4]))
-	version_ := uint16(binary.LittleEndian.Uint16(headerbuf[4:6]))
-	flag_ := uint16(binary.LittleEndian.Uint16(headerbuf[6:8]))
-	service_id_ := uint16(binary.LittleEndian.Uint16(headerbuf[8:10]))
-	command_id_ := uint16(binary.LittleEndian.Uint16(headerbuf[10:12]))
-	seq_num_ := uint16(binary.LittleEndian.Uint16(headerbuf[12:14]))
-	reversed_ := uint16(binary.LittleEndian.Uint16(headerbuf[14:16]))
+	length_ := uint32(binary.BigEndian.Uint32(headerbuf[:4]))
+	version_ := uint16(binary.BigEndian.Uint16(headerbuf[4:6]))
+	flag_ := uint16(binary.BigEndian.Uint16(headerbuf[6:8]))
+	service_id_ := uint16(binary.BigEndian.Uint16(headerbuf[8:10]))
+	command_id_ := uint16(binary.BigEndian.Uint16(headerbuf[10:12]))
+	seq_num_ := uint16(binary.BigEndian.Uint16(headerbuf[12:14]))
+	reversed_ := uint16(binary.BigEndian.Uint16(headerbuf[14:16]))
 	msg_ := make([]byte, int(length_)-headerSize)
 	cnt, err = client.conn.Read(msg_)
 
